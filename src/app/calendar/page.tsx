@@ -48,7 +48,7 @@ export default function CalendarPage() {
       return bTime - aTime;
     });
 
-  // 🔹 월 단위 데이터 불러오기
+  // 월 단위 데이터 불러오기
   useEffect(() => {
     if (!isLoaded || !isSignedIn || !userId) return;
 
@@ -65,7 +65,7 @@ export default function CalendarPage() {
       });
   }, [viewDate, isLoaded]);
 
-  // 🔹 선택한 날짜 할 일 불러오기
+  // 선택한 날짜 할 일 불러오기
   useEffect(() => {
     if (!isLoaded || !isSignedIn || !userId) return;
 
@@ -152,7 +152,7 @@ export default function CalendarPage() {
     <div className="min-h-screen bg-slate-50 flex justify-center px-4">
       <div className="w-full max-w-4xl py-10">
 
-        {/* 📌 상단 헤더 */}
+        {/* 상단 헤더 */}
         <header className="mb-10">
           <div className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-s font-medium text-slate-500 mb-3">
             <span className="h-2 w-2 rounded-full bg-blue-500" />
@@ -186,7 +186,7 @@ export default function CalendarPage() {
 
         <main className="flex flex-col md:flex-row gap-10">
 
-          {/* 📌 달력 */}
+          {/* 달력 */}
           <div className="w-full md:w-1/2 bg-white border border-slate-200 rounded-2xl shadow-sm p-5">
             <div className="grid grid-cols-7 text-center text-sm font-medium text-slate-500 mb-2">
               {["일", "월", "화", "수", "목", "금", "토"].map((d) => (
@@ -226,7 +226,7 @@ export default function CalendarPage() {
             </div>
           </div>
 
-          {/* 📌 오른쪽 할 일 목록 */}
+          {/*오른쪽 할 일 목록*/}
           <div className="w-full md:w-1/2">
             <h2 className="text-lg font-semibold text-slate-800 mb-4">
               {selectedDate.toLocaleDateString()}

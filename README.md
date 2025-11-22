@@ -1,3 +1,22 @@
+안녕 애들아 깃허브 퍼가서 테스트 돌릴 때 
+1. backend/.env파일 추가해서
+CLERK_SECRET_KEY=sk_test_zpKjhtGa9a7knZXFUODZdmtSgULpGqfYms3J5rz0sl
+
+MONGO_URI=mongodb+srv://kayoung2389_db_user:6c6N_2pF_XyFgMm@cluster0.wppbtic.mongodb.net/?appName=Cluster0
+PORT=5000
+추가하고(데이터 제대로 테스트하려면 몽고DB 계정 너껄로 해야댐)
+
+2. 프로젝트 최상단에 .env.local파일도 추가해서
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_cXVpZXQtaGVybWl0LTY2LmNsZXJrLmFjY291bnRzLmRldiQ
+
+CLERK_SECRET_KEY=sk_test_zpKjhtGa9a7knZXFUODZdmtSgULpGqfYms3J5rz0sl
+
+NEXT_PUBLIC_CLERK_SIGN_UP_URL=/sign-up
+NEXT_PUBLIC_CLERK_SIGN_IN_URL=/sign-in
+NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL=/main
+NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL=/main
+복붙하거라
+
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
 ## Getting Started

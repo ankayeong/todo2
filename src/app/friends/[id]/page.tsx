@@ -1,13 +1,13 @@
 "use client";
 
+import React from "react";
 import { useEffect, useState } from "react";
 import { useAuth } from "@clerk/nextjs";
 
-interface Friend {
+interface FriendDetail {
   _id: string;
-  name: string;
-  requesterId: string;
-  receiverId: string; // 친구 Clerk userId
+  friendId: string;  
+  friendName: string;
 }
 
 interface Todo {
@@ -16,16 +16,20 @@ interface Todo {
   title: string;
   description: string;
   completed: boolean;
-  createdAt?: string; // YYYY-MM-DD
+  createdAt?: string;
 }
 
 export default function FriendCalendarPage({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
-  const { isLoaded, isSignedIn } = useAuth();
-  const [friend, setFriend] = useState<Friend | null>(null);
+  // Next.js 15: unwrap params
+  const { id } = React.use(params);
+
+  const { isLoaded, isSignedIn, userId } = useAuth();
+
+  const [friend, setFriend] = useState<FriendDetail | null>(null);
   const [tasks, setTasks] = useState<Todo[]>([]);
   const [viewDate, setViewDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -56,34 +60,39 @@ export default function FriendCalendarPage({
 
   // 친구 정보 불러오기
   useEffect(() => {
+    if (!isLoaded || !isSignedIn || !userId) return;
+
     setLoading(true);
-    fetch(`http://localhost:5000/api/friends/${params.id}`)
-      .then((res) => res.json())
-      .then((data: Friend) => {
+
+    fetch(`http://localhost:5000/api/friends/${id}?userId=${userId}`)
+      .then(async (res) => {
+        if (!res.ok) throw new Error("친구 정보가 없습니다.");
+        return res.json();
+      })
+      .then((data: FriendDetail) => {
         setFriend(data);
-        setLoading(false);
       })
       .catch((err) => {
-        console.error("친구 정보 불러오기 실패:", err);
-        setLoading(false);
-      });
-  }, [params.id]);
+        console.error(err);
+      })
+      .finally(() => setLoading(false));
+  }, [isLoaded, isSignedIn, userId, id]); //params.id 대신 id 사용
 
-  // 선택 날짜의 친구 Todo 불러오기
+  // 해당 날짜의 친구 Todo 불러오기
   useEffect(() => {
     if (!friend) return;
 
     const dateStr = getDateString(selectedDate);
 
     fetch(
-      `http://localhost:5000/api/todos/by-date?userId=${friend.receiverId}&date=${dateStr}`
+      `http://localhost:5000/api/todos/by-date?userId=${friend.friendId}&date=${dateStr}`
     )
       .then((res) => res.json())
       .then((data: Todo[]) => setTasks(sortTodosByDate(data)))
       .catch((err) => console.error("친구 투두 불러오기 실패:", err));
   }, [friend, selectedDate]);
 
-  if (!isLoaded || loading || !friend) {
+  if (!isLoaded || loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         Loading...
@@ -91,9 +100,17 @@ export default function FriendCalendarPage({
     );
   }
 
-  if (!isSignedIn) {
+  if (!isSignedIn || !userId) {
     window.location.href = "/";
     return null;
+  }
+
+  if (!friend) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <p className="text-slate-500 text-sm">친구 정보를 찾을 수 없습니다.</p>
+      </div>
+    );
   }
 
   const handlePrevMonth = () => setViewDate(new Date(year, month - 1, 1));
@@ -102,15 +119,16 @@ export default function FriendCalendarPage({
   return (
     <div className="min-h-screen bg-slate-50 flex justify-center px-4">
       <div className="w-full max-w-5xl py-10 flex flex-col md:flex-row gap-10">
+        
         {/* 왼쪽: 달력 */}
         <section className="w-full md:w-1/2">
           <header className="mb-6">
             <p className="text-xs text-slate-400 mb-1">Friend&apos;s Calendar</p>
             <h1 className="text-2xl font-extrabold text-slate-900">
-              {friend.name}님의 캘린더
+              {friend.friendName}님의 캘린더
             </h1>
             <p className="text-[11px] text-slate-400 mt-1">
-              친구 ID: {friend.receiverId}
+              친구 ID: {friend.friendId}
             </p>
           </header>
 
@@ -132,14 +150,14 @@ export default function FriendCalendarPage({
             </button>
           </div>
 
-          {/* 요일 영역 */}
+          {/* 요일 */}
           <div className="grid grid-cols-7 gap-1 text-center text-xs font-medium text-slate-500 mb-2">
             {["일", "월", "화", "수", "목", "금", "토"].map((day) => (
               <span key={day}>{day}</span>
             ))}
           </div>
 
-          {/* 날짜 그리드 */}
+          {/* 날짜 */}
           <div className="grid grid-cols-7 gap-2">
             {days.map((day, idx) => {
               const isToday =
@@ -162,8 +180,7 @@ export default function FriendCalendarPage({
                         ? "bg-slate-200 border border-slate-300"
                         : "bg-white border border-slate-200"
                     }
-                    ${!day ? "bg-transparent border-none" : ""}
-                  `}
+                    ${!day ? "bg-transparent border-none" : ""}`}
                   onClick={() =>
                     day && setSelectedDate(new Date(year, month, day))
                   }
@@ -176,7 +193,7 @@ export default function FriendCalendarPage({
           </div>
         </section>
 
-        {/* 오른쪽: 친구 Todo 리스트 (읽기 전용) */}
+        {/* 오른쪽: 할 일 */}
         <section className="w-full md:w-1/2">
           <p className="text-lg font-bold text-slate-900 mb-2 text-center md:text-left">
             {selectedDate.toLocaleDateString()} 할 일

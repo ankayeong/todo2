@@ -17,7 +17,7 @@ export default function Sidebar(){
         { name: 'Tasks', icon: 'checklist', path: '/main' },
         { name: 'Calendar', icon: 'calendar_month', path: '/calendar' },
         { name: 'Chart', icon:'bar_chart', path: '/stats'},
-        { name: 'Friends', icon: 'group', path: '/friends' },   // ⭐ 추가됨!
+        { name: 'Friends', icon: 'group', path: '/friends' },  
         { name: 'Profile', icon: 'person', path: '/profile' },
     ];
 

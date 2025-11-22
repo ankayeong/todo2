@@ -1,4 +1,3 @@
-// backend/controllers/todoController.js
 import Todo from "../models/Todo.js";
 
 // 공통: 오늘 날짜를 "YYYY-MM-DD" 문자열로 만드는 함수
