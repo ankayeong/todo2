@@ -14,10 +14,10 @@ import {
 } from "recharts";
 
 interface MonthlyStat {
-  month: string;
-  completionRate: number;
+  month: string;        // "2025-01"
   total: number;
   completed: number;
+  completionRate: number;
 }
 
 export default function StatsPage() {
@@ -25,7 +25,10 @@ export default function StatsPage() {
   const [data, setData] = useState<MonthlyStat[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // 백엔드에서 월별 통계 가져오기
+  // 클릭된 월 데이터 저장
+  const [selectedMonth, setSelectedMonth] = useState<MonthlyStat | null>(null);
+
+  // 월별 통계 가져오기
   useEffect(() => {
     if (!isLoaded || !isSignedIn || !userId) return;
 
@@ -35,10 +38,7 @@ export default function StatsPage() {
         setData(stats);
         setLoading(false);
       })
-      .catch((err) => {
-        console.error("통계 불러오기 실패:", err);
-        setLoading(false);
-      });
+      .catch(() => setLoading(false));
   }, [isLoaded, isSignedIn, userId]);
 
   if (!isLoaded || loading) {
@@ -55,40 +55,89 @@ export default function StatsPage() {
   }
 
   return (
-    <div className="flex flex-col items-center p-10">
-      <h2 className="text-2xl font-bold mb-6 text-slate-800">
-        📊 월별 할 일 완료 비율
-      </h2>
+    <div className="min-h-screen bg-slate-50 flex justify-center px-4 py-10">
+      <div className="w-full max-w-4xl">
 
-      <div className="w-full max-w-3xl h-96 bg-white rounded-xl shadow-lg p-6">
-        <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={data}>
-            <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+        {/* 헤더 */}
+        <header className="mb-6">
+          <h2 className="text-3xl font-extrabold text-slate-900">
+            📊 월별 할 일 통계
+          </h2>
+          <p className="text-slate-500 mt-1">
+            그래프를 클릭하면 해당 월의 상세 정보를 확인할 수 있어요.
+          </p>
+        </header>
 
-            <XAxis
-              dataKey="month"
-              tick={{ fontSize: 12, fill: "#555" }}
-              tickMargin={10}
-            />
-            <YAxis
-              unit="%"
-              tick={{ fontSize: 12, fill: "#555" }}
-            />
-            <Tooltip
-              contentStyle={{
-                borderRadius: "8px",
-                backgroundColor: "rgba(255,255,255,0.9)",
-                border: "1px solid #eee",
-              }}
-            />
+        {/* 그래프 */}
+        <div className="w-full h-80 bg-white rounded-2xl shadow-md p-6 mb-8">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={data}>
+              <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
 
-            <Bar
-              dataKey="completionRate"
-              fill="#4F46E5"
-              radius={[6, 6, 0, 0]}
-            />
-          </BarChart>
-        </ResponsiveContainer>
+              <XAxis dataKey="month" tick={{ fontSize: 12 }} />
+              <YAxis unit="%" tick={{ fontSize: 12 }} />
+
+              <Tooltip
+                contentStyle={{
+                  borderRadius: "10px",
+                  backgroundColor: "white",
+                  border: "1px solid #eee",
+                }}
+              />
+
+              {/*바 클릭 이벤트*/}
+              <Bar
+                dataKey="completionRate"
+                fill="#4F46E5"
+                radius={[6, 6, 0, 0]}
+                onClick={(data) => {
+                  const item = data as unknown as MonthlyStat;
+                  setSelectedMonth(item);
+                }}
+              />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+
+        {/* 상세 정보 */}
+        <div className="bg-white p-6 rounded-2xl shadow-md">
+          {selectedMonth ? (
+            <>
+              <h3 className="text-xl font-bold text-slate-900 mb-4">
+                📅 {selectedMonth.month} 통계 요약
+              </h3>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+
+                <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl shadow-sm">
+                  <p className="text-sm text-slate-500">총 할 일</p>
+                  <p className="text-2xl font-bold text-slate-900">
+                    {selectedMonth.total}개
+                  </p>
+                </div>
+
+                <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl shadow-sm">
+                  <p className="text-sm text-slate-500">완료된 할 일</p>
+                  <p className="text-2xl font-bold text-blue-600">
+                    {selectedMonth.completed}개
+                  </p>
+                </div>
+
+                <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl shadow-sm">
+                  <p className="text-sm text-slate-500">완료율</p>
+                  <p className="text-2xl font-bold text-emerald-600">
+                    {selectedMonth.completionRate}%
+                  </p>
+                </div>
+
+              </div>
+            </>
+          ) : (
+            <p className="text-center text-slate-400">
+              위 그래프에서 보고 싶은 월을 클릭하세요.
+            </p>
+          )}
+        </div>
       </div>
     </div>
   );

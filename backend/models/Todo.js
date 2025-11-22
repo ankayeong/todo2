@@ -9,7 +9,7 @@ const todoSchema = new mongoose.Schema({
     type: Boolean,
     default: false,
   },
-  // 🔥 날짜를 "YYYY-MM-DD" 문자열로만 저장할 거야
+  // 날짜를 "YYYY-MM-DD" 문자열로만 저장
   createdAt: {
     type: String, // 예: "2025-11-21"
     required: true,

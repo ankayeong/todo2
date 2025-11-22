@@ -9,7 +9,7 @@ interface Todo {
   title: string;
   description: string;
   completed: boolean;
-  createdAt?: string; // 문자열 날짜
+  createdAt?: string;
 }
 
 export default function MainPage() {
@@ -19,7 +19,7 @@ export default function MainPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingText, setEditingText] = useState("");
 
-  // 🔧 날짜 문자열 만드는 함수 (YYYY-MM-DD)
+  // YYYY-MM-DD
   const getDateString = (date: Date) => {
     const y = date.getFullYear();
     const m = String(date.getMonth() + 1).padStart(2, "0");
@@ -27,8 +27,8 @@ export default function MainPage() {
     return `${y}-${m}-${d}`;
   };
 
-  // 오늘 날짜 문자열 (UI 표시용)
   const today = new Date();
+  const todayKey = getDateString(today);
   const todayString = today.toLocaleDateString(undefined, {
     year: "numeric",
     month: "short",
@@ -36,13 +36,22 @@ export default function MainPage() {
     weekday: "short",
   });
 
-  // 서버에서 할 일 가져오기
+  const sortTodosByDate = (items: Todo[]) =>
+    [...items].sort((a, b) => {
+      const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return bTime - aTime;
+    });
+
+  // 오늘 날짜의 투두만 불러오기
   useEffect(() => {
     if (!isLoaded || !isSignedIn || !userId) return;
 
-    fetch(`http://localhost:5000/api/todos/${userId}`)
+    fetch(
+      `http://localhost:5000/api/todos/by-date?userId=${userId}&date=${todayKey}`
+    )
       .then((res) => res.json())
-      .then((data: Todo[]) => setTasks(data))
+      .then((data: Todo[]) => setTasks(sortTodosByDate(data)))
       .catch((err) => console.error("Error fetching todos:", err));
   }, [isLoaded, isSignedIn, userId]);
 
@@ -55,17 +64,17 @@ export default function MainPage() {
     );
   }
 
-  // 로그인 안 됨 → 루트 이동
   if (!isSignedIn) {
     window.location.href = "/";
     return null;
   }
 
-  // 할 일 추가
+  const totalCount = tasks.length;
+  const completedCount = tasks.filter((t) => t.completed).length;
+
+  // Todo 추가
   const addTask = () => {
     if (!input.trim() || !userId) return;
-
-    const createdAt = getDateString(new Date()); // 🔥 여기! 오늘 날짜 문자열로 저장
 
     fetch("http://localhost:5000/api/todos", {
       method: "POST",
@@ -74,25 +83,25 @@ export default function MainPage() {
         userId,
         title: input.trim(),
         description: "",
-        createdAt, // 🔥 문자열로 보냄
+        createdAt: todayKey,
       }),
     })
       .then((res) => res.json())
       .then((newTodo: Todo) => {
-        setTasks((prev) => [...prev, newTodo]);
+        setTasks((prev) => [newTodo, ...prev]); // 최신 위로
         setInput("");
       })
       .catch((err) => console.error("Error creating todo:", err));
   };
 
-  // 할 일 삭제
+  // 삭제
   const removeTask = (id: string) => {
     fetch(`http://localhost:5000/api/todos/${id}`, { method: "DELETE" })
       .then(() => setTasks((prev) => prev.filter((t) => t._id !== id)))
       .catch((err) => console.error("Error deleting todo:", err));
   };
 
-  // 체크/언체크
+  // 체크 변경
   const toggleCompleted = (task: Todo, completed: boolean) => {
     fetch(`http://localhost:5000/api/todos/${task._id}`, {
       method: "PUT",
@@ -128,106 +137,139 @@ export default function MainPage() {
   };
 
   return (
-    <div className="flex-1 flex flex-col items-center px-6 py-4">
-      <h1 className="text-4xl font-bold text-slate-800 p-10 text-center w-full">
-        My Tasks
-      </h1>
+    <div className="min-h-screen bg-slate-50 flex justify-center px-4">
+      <div className="w-full max-w-3xl py-10">
+        {/* 상단 헤더 */}
+        <header className="mb-8">
+          <div className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-s font-medium text-slate-500 mb-3">
+            <span className="h-2 w-2 rounded-full bg-emerald-400" />
+            오늘 하루를 정리해보세요
+          </div>
 
-      {/* Input + Add Button */}
-      <div className="flex w-full max-w-2xl mb-6">
-        <input
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && addTask()}
-          placeholder="Add a new task..."
-          className="flex-1 rounded-lg border border-slate-300 bg-white px-4 py-3 text-base text-slate-800 placeholder-slate-400 shadow-sm focus:border-blue-500 focus:ring-blue-500 focus:ring-2 focus:outline-none"
-        />
-        <button
-          onClick={addTask}
-          type="button"
-          className="ml-2 flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-800 hover:bg-slate-200"
-          aria-label="add task"
-        >
-          <span className="material-symbols-outlined text-2xl">add</span>
-        </button>
-      </div>
-
-      {/* Task List */}
-      <main className="w-full max-w-2xl">
-        <div className="flex items-center justify-between mb-2">
-          <h2 className="text-lg font-semibold text-slate-700">Today</h2>
-          <span className="text-sm text-slate-500">{todayString}</span>
-        </div>
-
-        <div className="relative space-y-4 max-h-96 overflow-y-auto p-2">
-          {tasks.map((task) => (
-            <div
-              key={task._id}
-              className="flex items-center gap-3 rounded-lg bg-white p-3 shadow-sm"
-            >
-              <input
-                type="checkbox"
-                checked={task.completed}
-                onChange={(e) => toggleCompleted(task, e.target.checked)}
-                className="h-5 w-5 rounded border-slate-300 text-blue-500 focus:ring-blue-500"
-              />
-
-              {editingId === task._id ? (
-                <>
-                  <input
-                    value={editingText}
-                    onChange={(e) => setEditingText(e.target.value)}
-                    className="flex-1 rounded border border-slate-300 px-2 py-1 text-base text-slate-800"
-                  />
-                  <button
-                    onClick={() => saveEditing(task)}
-                    className="ml-2 text-sm text-blue-500 hover:text-blue-700"
-                  >
-                    저장
-                  </button>
-                  <button
-                    onClick={() => {
-                      setEditingId(null);
-                      setEditingText("");
-                    }}
-                    className="ml-2 text-sm text-gray-400 hover:text-gray-600"
-                  >
-                    취소
-                  </button>
-                </>
-              ) : (
-                <>
-                  <p
-                    className={`flex-1 text-base break-words ${
-                      task.completed
-                        ? "line-through text-slate-400"
-                        : "text-slate-800"
-                    }`}
-                  >
-                    {task.title}
-                  </p>
-                  <button
-                    onClick={() => {
-                      setEditingId(task._id);
-                      setEditingText(task.title);
-                    }}
-                    className="ml-2 text-sm text-blue-500 hover:text-blue-700"
-                  >
-                    수정
-                  </button>
-                </>
-              )}
-
-              <button
-                onClick={() => removeTask(task._id)}
-                className="ml-2 text-sm text-slate-400 hover:text-red-500"
-              >
-                삭제
-              </button>
+          <div className="flex items-end justify-between gap-4">
+            <div>
+              <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight mb-2 text-slate-900">
+                오늘 할 일
+              </h1>
+              <p className="mt-1 text-s text-slate-500">{todayString}</p>
             </div>
-          ))}
-        </div>
-      </main>
+
+            <div className="flex items-center gap-2 text-xs md:text-sm">
+              <span className="px-3 py-1 rounded-full bg-white border border-slate-200 text-slate-600 shadow-sm">
+                전체 {totalCount}개
+              </span>
+              <span className="px-3 py-1 rounded-full bg-blue-600 text-white shadow-sm">
+                완료 {completedCount}개
+              </span>
+            </div>
+          </div>
+        </header>
+
+        {/* 입력 영역 */}
+        <section className="mb-8">
+          <div className="flex items-center gap-3">
+            <div className="flex-1 flex items-center bg-white border border-slate-200 rounded-2xl px-4 py-3 shadow-sm focus-within:ring-2 focus-within:ring-slate-900/80 transition">
+              <span className="material-symbols-outlined text-slate-400 mr-2 text-xl">
+                edit
+              </span>
+              <input
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && addTask()}
+                placeholder="할 일을 입력하고 Enter 또는 추가 버튼을 눌러보세요"
+                className="flex-1 bg-transparent outline-none text-sm md:text-base text-slate-700 placeholder:text-slate-400"
+              />
+            </div>
+            <button
+              onClick={addTask}
+              type="button"
+              className="shrink-0 rounded-2xl bg-blue-600 text-white px-5 py-3 text-sm md:text-base font-semibold shadow-sm hover:bg-blue-800 transition"
+            >
+              추가
+            </button>
+          </div>
+        </section>
+
+        {/* 리스트 영역 */}
+        <section>
+          {tasks.length === 0 ? (
+            <div className="mt-10 rounded-2xl border border-dashed border-slate-200 bg-slate-50/60 px-6 py-10 text-center text-slate-400 text-sm">
+              아직 등록된 할 일이 없어요.
+              <br />
+              위 입력창에 오늘 해야 할 일을 적어보세요.
+            </div>
+          ) : (
+            <div className="space-y-3 max-h-[520px] overflow-y-auto pr-1">
+              {tasks.map((task) => (
+                <div
+                  key={task._id}
+                  className="group flex items-center gap-3 rounded-2xl bg-white px-4 py-3 border border-slate-200 shadow-sm transition hover:border-slate-400 hover:shadow-md"
+                >
+                  <input
+                    type="checkbox"
+                    checked={task.completed}
+                    onChange={(e) => toggleCompleted(task, e.target.checked)}
+                    className="h-5 w-5 rounded border-slate-300 text-slate-900 focus:ring-slate-900"
+                  />
+
+                  {editingId === task._id ? (
+                    <>
+                      <input
+                        value={editingText}
+                        onChange={(e) => setEditingText(e.target.value)}
+                        className="flex-1 rounded-lg border border-slate-300 px-2 py-1 text-sm md:text-base text-slate-900 focus:outline-none focus:ring-1 focus:ring-slate-900/70"
+                      />
+                      <button
+                        onClick={() => saveEditing(task)}
+                        className="text-xs md:text-sm text-slate-900 font-medium px-2 py-1 rounded-lg hover:bg-slate-100"
+                      >
+                        저장
+                      </button>
+                      <button
+                        onClick={() => {
+                          setEditingId(null);
+                          setEditingText("");
+                        }}
+                        className="text-xs md:text-sm text-slate-400 px-2 py-1 rounded-lg hover:bg-slate-100"
+                      >
+                        취소
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <p
+                        className={`flex-1 text-sm md:text-base leading-snug ${
+                          task.completed
+                            ? "line-through text-slate-400"
+                            : "text-slate-900"
+                        }`}
+                      >
+                        {task.title}
+                      </p>
+                      <button
+                        onClick={() => {
+                          setEditingId(task._id);
+                          setEditingText(task.title);
+                        }}
+                        className="text-xs md:text-sm text-slate-400 hover:text-slate-900 font-medium px-2 py-1 rounded-lg hover:bg-slate-50"
+                      >
+                        수정
+                      </button>
+                    </>
+                  )}
+
+                  <button
+                    onClick={() => removeTask(task._id)}
+                    className="text-xs md:text-sm text-slate-300 hover:text-red-500 px-1 py-1 rounded-lg"
+                  >
+                    삭제
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      </div>
     </div>
   );
 }

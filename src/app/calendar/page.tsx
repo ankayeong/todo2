@@ -9,13 +9,14 @@ interface Todo {
   title: string;
   description: string;
   completed: boolean;
-  createdAt: string; // "YYYY-MM-DD"
+  createdAt?: string;
 }
 
 export default function CalendarPage() {
   const { isLoaded, isSignedIn, userId } = useAuth();
   const [viewDate, setViewDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
+  const [monthlyTasks, setMonthlyTasks] = useState<Record<string, number>>({});
   const [tasks, setTasks] = useState<Todo[]>([]);
   const [input, setInput] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -23,14 +24,7 @@ export default function CalendarPage() {
 
   const year = viewDate.getFullYear();
   const month = viewDate.getMonth();
-  const firstDayOfMonth = new Date(year, month, 1).getDay();
-  const lastDateOfMonth = new Date(year, month + 1, 0).getDate();
 
-  const days: (number | null)[] = [];
-  for (let i = 0; i < firstDayOfMonth; i++) days.push(null);
-  for (let d = 1; d <= lastDateOfMonth; d++) days.push(d);
-
-  // 🔧 날짜 문자열 만드는 함수 (YYYY-MM-DD) - 메인이랑 똑같이
   const getDateString = (date: Date) => {
     const y = date.getFullYear();
     const m = String(date.getMonth() + 1).padStart(2, "0");
@@ -38,39 +32,50 @@ export default function CalendarPage() {
     return `${y}-${m}-${d}`;
   };
 
-  // 📌 선택한 날짜의 투두 가져오기
+  const selectDateString = getDateString(selectedDate);
+
+  const firstDayOfMonth = new Date(year, month, 1).getDay();
+  const lastDateOfMonth = new Date(year, month + 1, 0).getDate();
+
+  const days: (number | null)[] = [];
+  for (let i = 0; i < firstDayOfMonth; i++) days.push(null);
+  for (let d = 1; d <= lastDateOfMonth; d++) days.push(d);
+
+  const sortTodosByDate = (items: Todo[]) =>
+    [...items].sort((a, b) => {
+      const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return bTime - aTime;
+    });
+
+  // 🔹 월 단위 데이터 불러오기
   useEffect(() => {
     if (!isLoaded || !isSignedIn || !userId) return;
 
-    const dateStr = getDateString(selectedDate);
-
-    fetch(
-      `http://localhost:5000/api/todos/by-date?userId=${userId}&date=${dateStr}`
-    )
+    fetch(`http://localhost:5000/api/todos/${userId}`)
       .then((res) => res.json())
-      .then((data: Todo[]) => setTasks(data))
-      .catch((err) => console.error("Error fetching todos:", err));
-  }, [selectedDate, isLoaded, isSignedIn, userId]);
+      .then((all: Todo[]) => {
+        const map: Record<string, number> = {};
+        all.forEach((t) => {
+          if (t.createdAt?.startsWith(`${year}-${String(month + 1).padStart(2, "0")}`)) {
+            map[t.createdAt] = (map[t.createdAt] || 0) + 1;
+          }
+        });
+        setMonthlyTasks(map);
+      });
+  }, [viewDate, isLoaded]);
 
-  if (!isLoaded)
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        Loading...
-      </div>
-    );
-  if (!isSignedIn) {
-    window.location.href = "/";
-    return null;
-  }
+  // 🔹 선택한 날짜 할 일 불러오기
+  useEffect(() => {
+    if (!isLoaded || !isSignedIn || !userId) return;
 
-  const handlePrevMonth = () => setViewDate(new Date(year, month - 1, 1));
-  const handleNextMonth = () => setViewDate(new Date(year, month + 1, 1));
+    fetch(`http://localhost:5000/api/todos/by-date?userId=${userId}&date=${selectDateString}`)
+      .then((res) => res.json())
+      .then((data: Todo[]) => setTasks(sortTodosByDate(data)));
+  }, [selectedDate, isLoaded]);
 
-  // 📌 투두 추가
   const addTask = () => {
     if (!input.trim() || !userId) return;
-
-    const dateStr = getDateString(selectedDate); // 🔥 선택한 날짜 문자열
 
     fetch("http://localhost:5000/api/todos", {
       method: "POST",
@@ -79,21 +84,33 @@ export default function CalendarPage() {
         userId,
         title: input.trim(),
         description: "",
-        createdAt: dateStr, // 🔥 메인과 동일하게 createdAt으로 저장
+        createdAt: selectDateString,
       }),
     })
       .then((res) => res.json())
       .then((newTodo: Todo) => {
-        setTasks((prev) => [...prev, newTodo]);
+        setTasks((prev) => [newTodo, ...prev]);
+        setMonthlyTasks((prev) => ({
+          ...prev,
+          [selectDateString]: (prev[selectDateString] || 0) + 1,
+        }));
         setInput("");
-      })
-      .catch((err) => console.error("Error creating todo:", err));
+      });
   };
 
   const removeTask = (id: string) => {
-    fetch(`http://localhost:5000/api/todos/${id}`, { method: "DELETE" })
-      .then(() => setTasks((prev) => prev.filter((t) => t._id !== id)))
-      .catch((err) => console.error("Error deleting todo:", err));
+    const removed = tasks.find((t) => t._id === id);
+    const dateStr = removed?.createdAt;
+
+    fetch(`http://localhost:5000/api/todos/${id}`, { method: "DELETE" }).then(() => {
+      setTasks((prev) => prev.filter((t) => t._id !== id));
+      if (dateStr) {
+        setMonthlyTasks((prev) => ({
+          ...prev,
+          [dateStr]: Math.max((prev[dateStr] || 1) - 1, 0),
+        }));
+      }
+    });
   };
 
   const toggleCompleted = (task: Todo, completed: boolean) => {
@@ -101,18 +118,15 @@ export default function CalendarPage() {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ completed }),
-    })
-      .then(() =>
-        setTasks((prev) =>
-          prev.map((t) => (t._id === task._id ? { ...t, completed } : t))
-        )
-      )
-      .catch((err) => console.error("Error updating todo:", err));
+    }).then(() => {
+      setTasks((prev) =>
+        prev.map((t) => (t._id === task._id ? { ...t, completed } : t))
+      );
+    });
   };
 
   const saveEditing = (task: Todo) => {
     if (!editingText.trim()) return;
-
     fetch(`http://localhost:5000/api/todos/${task._id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -125,170 +139,189 @@ export default function CalendarPage() {
         );
         setEditingId(null);
         setEditingText("");
-      })
-      .catch((err) => console.error("Error editing todo:", err));
+      });
   };
 
+  if (!isLoaded) return <p>Loading...</p>;
+  if (!isSignedIn) {
+    window.location.href = "/";
+    return null;
+  }
+
   return (
-    <div className="flex flex-col min-h-screen bg-background-light dark:bg-background-dark font-display">
-      {/* 헤더 */}
-      <header className="sticky top-0 z-10 bg-background-light/80 dark:bg-background-dark/80 backdrop-blur-sm p-4">
-        <h1 className="text-xl font-bold text-slate-900 dark:text-white text-center py-4">
-          Calendar
-        </h1>
-      </header>
+    <div className="min-h-screen bg-slate-50 flex justify-center px-4">
+      <div className="w-full max-w-4xl py-10">
 
-      {/* 메인 */}
-      <main className="flex-1 overflow-y-auto py-10 flex flex-col md:flex-row gap-6 justify-center">
-        {/* 달력 */}
-        <div className="w-full md:w-1/2 max-w-md mx-auto md:mx-0">
-          <div className="flex itemscenter justify-between mb-4 py-3">
-            <button
-              onClick={handlePrevMonth}
-              className="flex items-center justify-center w-10 h-10 rounded-full hover:bg-slate-200"
-            >
-              ◀
-            </button>
-            <p className="text-base font-bold text-slate-900 dark:text:white">
-              {year}년 {month + 1}월
-            </p>
-            <button
-              onClick={handleNextMonth}
-              className="flex items-center justify-center w-10 h-10 rounded-full hover:bg-slate-200"
-            >
-              ▶
-            </button>
+        {/* 📌 상단 헤더 */}
+        <header className="mb-10">
+          <div className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-s font-medium text-slate-500 mb-3">
+            <span className="h-2 w-2 rounded-full bg-blue-500" />
+            이번 달 할 일 확인
           </div>
 
-          <div className="grid grid-cols-7 gap-1 text-center text-xs font-medium text-slate-500 dark:text-slate-400 mb-2">
-            {["일", "월", "화", "수", "목", "금", "토"].map((day) => (
-              <span key={day}>{day}</span>
-            ))}
-          </div>
+          <div className="flex items-end justify-between">
+            <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight text-slate-900">
+              캘린더
+            </h1>
 
-          <div className="grid grid-cols-7 gap-1">
-            {days.map((day, idx) => {
-              const isToday =
-                day === new Date().getDate() &&
-                month === new Date().getMonth() &&
-                year === new Date().getFullYear();
-
-              const isSelected =
-                day === selectedDate.getDate() &&
-                month === selectedDate.getMonth() &&
-                year === selectedDate.getFullYear();
-
-              return (
-                <button
-                  key={idx}
-                  className={`h-10 flex items-center justify-center rounded hover:bg-slate-200
-                    ${isToday ? "text-blue-500" : ""}
-                    ${isSelected ? "bg-slate-200" : ""}`}
-                  onClick={() =>
-                    day && setSelectedDate(new Date(year, month, day))
-                  }
-                  disabled={!day}
-                >
-                  {day || ""}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* 오른쪽: 투두 목록 */}
-        <div className="w-full md:w-1/2 max-w-md">
-          <p className="text-lg font-bold text-slate-900 dark:text-white text-center">
-            {selectedDate.toLocaleDateString()} 할 일
-          </p>
-
-          <div className="flex w-full mb-4 mt-6">
-            <input
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && addTask()}
-              placeholder="Add a new task..."
-              className="flex-1 rounded-lg border border-slate-300 bg-white px-4 py-3 text-base text-slate-800 placeholder-slate-400 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-            />
-            <button
-              onClick={addTask}
-              type="button"
-              className="ml-2 flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-800 hover:bg-slate-200"
-            >
-              <span className="material-symbols-outlined text-2xl">add</span>
-            </button>
-          </div>
-
-          <ul className="relative space-y-4 max-h-96 overflow-y-auto pr-3">
-            {tasks.map((task) => (
-              <div
-                key={task._id}
-                className="flex items-center gap-3 rounded-lg bg-white p-3 shadow-sm"
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setViewDate(new Date(year, month - 1, 1))}
+                className="px-3 py-2 bg-white border border-slate-200 rounded-xl shadow-sm hover:bg-slate-100"
               >
-                <input
-                  type="checkbox"
-                  checked={task.completed}
-                  onChange={(e) => toggleCompleted(task, e.target.checked)}
-                  className="h-5 w-5 rounded border-slate-300 text-blue-500"
-                />
+                ◀
+              </button>
+              <p className="text-lg font-semibold text-slate-700">
+                {year}년 {month + 1}월
+              </p>
+              <button
+                onClick={() => setViewDate(new Date(year, month + 1, 1))}
+                className="px-3 py-2 bg-white border border-slate-200 rounded-xl shadow-sm hover:bg-slate-100"
+              >
+                ▶
+              </button>
+            </div>
+          </div>
+        </header>
 
-                {editingId === task._id ? (
-                  <>
-                    <input
-                      value={editingText}
-                      onChange={(e) => setEditingText(e.target.value)}
-                      className="flex-1 rounded border border-slate-300 px-2 py-1 text-base text-slate-800"
-                    />
-                    <button
-                      onClick={() => saveEditing(task)}
-                      className="ml-2 text-blue-500 hover:underline"
-                    >
-                      저장
-                    </button>
-                    <button
-                      onClick={() => {
-                        setEditingId(null);
-                        setEditingText("");
-                      }}
-                      className="ml-2 text-gray-400"
-                    >
-                      취소
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <p
-                      className={`flex-1 text-base break-words ${
-                        task.completed
-                          ? "line-through text-slate-400"
-                          : "text-slate-800"
+        <main className="flex flex-col md:flex-row gap-10">
+
+          {/* 📌 달력 */}
+          <div className="w-full md:w-1/2 bg-white border border-slate-200 rounded-2xl shadow-sm p-5">
+            <div className="grid grid-cols-7 text-center text-sm font-medium text-slate-500 mb-2">
+              {["일", "월", "화", "수", "목", "금", "토"].map((d) => (
+                <span key={d}>{d}</span>
+              ))}
+            </div>
+
+            <div className="grid grid-cols-7 gap-2">
+              {days.map((day, idx) => {
+                const dateStr =
+                  day &&
+                  `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+                const isSelected = dateStr === selectDateString;
+                const count = dateStr ? monthlyTasks[dateStr] || 0 : 0;
+
+                return (
+                  <button
+                    key={idx}
+                    className={`h-14 flex flex-col justify-center items-center rounded-xl 
+                      border text-sm transition
+                      ${
+                        isSelected
+                          ? "bg-blue-600 text-white shadow-md"
+                          : "bg-white border-slate-200 hover:bg-slate-100"
                       }`}
-                    >
-                      {task.title}
-                    </p>
-                    <button
-                      onClick={() => {
-                        setEditingId(task._id);
-                        setEditingText(task.title);
-                      }}
-                      className="ml-2 text-blue-500 hover:underline"
-                    >
-                      수정
-                    </button>
-                  </>
-                )}
+                    onClick={() => day && setSelectedDate(new Date(year, month, day))}
+                  >
+                    <span className="font-medium">{day ?? ""}</span>
+                    {count > 0 && (
+                      <span className={`text-xs ${isSelected ? "text-blue-100" : "text-blue-500"}`}>
+                        ● {count}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
 
-                <button
-                  onClick={() => removeTask(task._id)}
-                  className="ml-2 text-sm text-slate-400 hover:text-red-500"
-                >
-                  삭제
-                </button>
+          {/* 📌 오른쪽 할 일 목록 */}
+          <div className="w-full md:w-1/2">
+            <h2 className="text-lg font-semibold text-slate-800 mb-4">
+              {selectedDate.toLocaleDateString()}
+            </h2>
+
+            {/* 입력창 */}
+            <div className="flex items-center gap-3 mb-4">
+              <div className="flex-1 flex items-center bg-white border border-slate-200 rounded-2xl px-4 py-3 shadow-sm">
+                <span className="material-symbols-outlined text-slate-400 mr-2">edit</span>
+                <input
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && addTask()}
+                  placeholder="할 일을 입력하세요"
+                  className="flex-1 bg-transparent outline-none text-sm text-slate-700"
+                />
               </div>
-            ))}
-          </ul>
-        </div>
-      </main>
+              <button
+                onClick={addTask}
+                className="rounded-2xl bg-blue-600 text-white px-4 py-3 text-sm font-semibold shadow-sm hover:bg-blue-700 transition"
+              >
+                추가
+              </button>
+            </div>
+
+            {/* 리스트 */}
+            <div className="space-y-3 max-h-[520px] overflow-y-auto pr-1">
+              {tasks.map((task) => (
+                <div
+                  key={task._id}
+                  className="flex items-center gap-3 rounded-2xl bg-white px-4 py-3 border border-slate-200 shadow-sm hover:border-slate-400 hover:shadow-md transition"
+                >
+                  <input
+                    type="checkbox"
+                    checked={task.completed}
+                    onChange={(e) => toggleCompleted(task, e.target.checked)}
+                    className="h-5 w-5"
+                  />
+
+                  {editingId === task._id ? (
+                    <>
+                      <input
+                        value={editingText}
+                        onChange={(e) => setEditingText(e.target.value)}
+                        className="flex-1 rounded-lg border border-slate-300 px-2 py-1"
+                      />
+                      <button
+                        onClick={() => saveEditing(task)}
+                        className="text-sm text-blue-600 px-2 py-1"
+                      >
+                        저장
+                      </button>
+                      <button
+                        onClick={() => {
+                          setEditingId(null);
+                          setEditingText("");
+                        }}
+                        className="text-sm text-slate-500 px-2 py-1"
+                      >
+                        취소
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <p
+                        className={`flex-1 text-sm ${
+                          task.completed ? "line-through text-slate-400" : "text-slate-800"
+                        }`}
+                      >
+                        {task.title}
+                      </p>
+                      <button
+                        onClick={() => {
+                          setEditingId(task._id);
+                          setEditingText(task.title);
+                        }}
+                        className="text-sm text-slate-500"
+                      >
+                        수정
+                      </button>
+                    </>
+                  )}
+
+                  <button
+                    onClick={() => removeTask(task._id)}
+                    className="text-sm text-slate-400 hover:text-red-500"
+                  >
+                    삭제
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </main>
+      </div>
     </div>
   );
 }

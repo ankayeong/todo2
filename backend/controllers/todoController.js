@@ -1,7 +1,7 @@
 // backend/controllers/todoController.js
 import Todo from "../models/Todo.js";
 
-// 🔧 공통: 오늘 날짜를 "YYYY-MM-DD" 문자열로 만드는 함수
+// 공통: 오늘 날짜를 "YYYY-MM-DD" 문자열로 만드는 함수
 const getDateString = (date) => {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, "0");
@@ -77,7 +77,7 @@ export const updateTodo = async (req, res) => {
   }
 };
 
-// 🔥 특정 날짜의 할 일 가져오기 (캘린더)
+//  특정 날짜의 할 일 가져오기 (캘린더)
 export const getTodosByDate = async (req, res) => {
   try {
     const { userId, date } = req.query;
@@ -91,8 +91,8 @@ export const getTodosByDate = async (req, res) => {
     // createdAt은 "YYYY-MM-DD" 문자열이니까, 그냥 문자열로 비교하면 됨
     const todos = await Todo.find({
       userId,
-      createdAt: date, // ← 여기!
-    });
+      createdAt: date, 
+    }).sort({ createdAt: -1 });
 
     res.json(todos);
   } catch (err) {

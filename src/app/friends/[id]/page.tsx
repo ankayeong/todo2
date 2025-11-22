@@ -1,65 +1,219 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
+import { useAuth } from "@clerk/nextjs";
 
 interface Friend {
   _id: string;
   name: string;
-  calendar: Record<string, string[]>;
+  requesterId: string;
+  receiverId: string; // 친구 Clerk userId
 }
 
-export default function FriendCalendarPage(
-  props: { params: Promise<{ id: string }> }
-) {
-  const { id } = React.use(props.params);
+interface Todo {
+  _id: string;
+  userId: string;
+  title: string;
+  description: string;
+  completed: boolean;
+  createdAt?: string; // YYYY-MM-DD
+}
 
+export default function FriendCalendarPage({
+  params,
+}: {
+  params: { id: string };
+}) {
+  const { isLoaded, isSignedIn } = useAuth();
   const [friend, setFriend] = useState<Friend | null>(null);
+  const [tasks, setTasks] = useState<Todo[]>([]);
+  const [viewDate, setViewDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
+  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetch(`http://localhost:5000/api/friends/${id}`)
-      .then((res) => res.json())
-      .then(setFriend);
-  }, [id]);
+  const year = viewDate.getFullYear();
+  const month = viewDate.getMonth();
+  const firstDayOfMonth = new Date(year, month, 1).getDay();
+  const lastDateOfMonth = new Date(year, month + 1, 0).getDate();
 
-  if (!friend) {
-    return <p className="p-6">친구 정보를 불러오는 중...</p>;
-  }
+  const days: (number | null)[] = [];
+  for (let i = 0; i < firstDayOfMonth; i++) days.push(null);
+  for (let d = 1; d <= lastDateOfMonth; d++) days.push(d);
 
-  const getDateString = (d: Date) => {
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, "0");
-    const day = String(d.getDate()).padStart(2, "0");
-    return `${y}-${m}-${day}`;
+  const getDateString = (date: Date) => {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, "0");
+    const d = String(date.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
   };
 
-  const todayKey = getDateString(selectedDate);
-  const tasks = friend.calendar[todayKey] || [];
+  const sortTodosByDate = (items: Todo[]) =>
+    [...items].sort((a, b) => {
+      const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return bTime - aTime;
+    });
+
+  // 친구 정보 불러오기
+  useEffect(() => {
+    setLoading(true);
+    fetch(`http://localhost:5000/api/friends/${params.id}`)
+      .then((res) => res.json())
+      .then((data: Friend) => {
+        setFriend(data);
+        setLoading(false);
+      })
+      .catch((err) => {
+        console.error("친구 정보 불러오기 실패:", err);
+        setLoading(false);
+      });
+  }, [params.id]);
+
+  // 선택 날짜의 친구 Todo 불러오기
+  useEffect(() => {
+    if (!friend) return;
+
+    const dateStr = getDateString(selectedDate);
+
+    fetch(
+      `http://localhost:5000/api/todos/by-date?userId=${friend.receiverId}&date=${dateStr}`
+    )
+      .then((res) => res.json())
+      .then((data: Todo[]) => setTasks(sortTodosByDate(data)))
+      .catch((err) => console.error("친구 투두 불러오기 실패:", err));
+  }, [friend, selectedDate]);
+
+  if (!isLoaded || loading || !friend) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        Loading...
+      </div>
+    );
+  }
+
+  if (!isSignedIn) {
+    window.location.href = "/";
+    return null;
+  }
+
+  const handlePrevMonth = () => setViewDate(new Date(year, month - 1, 1));
+  const handleNextMonth = () => setViewDate(new Date(year, month + 1, 1));
 
   return (
-    <div className="p-6">
-      <h1 className="text-xl font-bold mb-6 text-center">
-        {friend.name}님의 캘린더
-      </h1>
+    <div className="min-h-screen bg-slate-50 flex justify-center px-4">
+      <div className="w-full max-w-5xl py-10 flex flex-col md:flex-row gap-10">
+        {/* 왼쪽: 달력 */}
+        <section className="w-full md:w-1/2">
+          <header className="mb-6">
+            <p className="text-xs text-slate-400 mb-1">Friend&apos;s Calendar</p>
+            <h1 className="text-2xl font-extrabold text-slate-900">
+              {friend.name}님의 캘린더
+            </h1>
+            <p className="text-[11px] text-slate-400 mt-1">
+              친구 ID: {friend.receiverId}
+            </p>
+          </header>
 
-      <p className="text-center text-lg mb-4">
-        {selectedDate.toLocaleDateString()}
-      </p>
+          <div className="flex items-center justify-between mb-4 py-2">
+            <button
+              onClick={handlePrevMonth}
+              className="flex items-center justify-center w-9 h-9 rounded-full hover:bg-slate-200 text-slate-700"
+            >
+              ◀
+            </button>
+            <p className="text-base font-bold text-slate-900">
+              {year}년 {month + 1}월
+            </p>
+            <button
+              onClick={handleNextMonth}
+              className="flex items-center justify-center w-9 h-9 rounded-full hover:bg-slate-200 text-slate-700"
+            >
+              ▶
+            </button>
+          </div>
 
-      <ul className="space-y-3">
-        {tasks.length === 0 && (
-          <p className="text-gray-400 text-center">할 일이 없습니다.</p>
-        )}
+          {/* 요일 영역 */}
+          <div className="grid grid-cols-7 gap-1 text-center text-xs font-medium text-slate-500 mb-2">
+            {["일", "월", "화", "수", "목", "금", "토"].map((day) => (
+              <span key={day}>{day}</span>
+            ))}
+          </div>
 
-        {tasks.map((t, i) => (
-          <li
-            key={i}
-            className="p-3 bg-white shadow rounded text-slate-800"
-          >
-            {t}
-          </li>
-        ))}
-      </ul>
+          {/* 날짜 그리드 */}
+          <div className="grid grid-cols-7 gap-2">
+            {days.map((day, idx) => {
+              const isToday =
+                day === new Date().getDate() &&
+                month === new Date().getMonth() &&
+                year === new Date().getFullYear();
+
+              const isSelected =
+                day === selectedDate.getDate() &&
+                month === selectedDate.getMonth() &&
+                year === selectedDate.getFullYear();
+
+              return (
+                <button
+                  key={idx}
+                  className={`h-10 flex items-center justify-center rounded-xl text-sm
+                    ${isToday ? "text-blue-500 font-semibold" : "text-slate-700"}
+                    ${
+                      isSelected
+                        ? "bg-slate-200 border border-slate-300"
+                        : "bg-white border border-slate-200"
+                    }
+                    ${!day ? "bg-transparent border-none" : ""}
+                  `}
+                  onClick={() =>
+                    day && setSelectedDate(new Date(year, month, day))
+                  }
+                  disabled={!day}
+                >
+                  {day || ""}
+                </button>
+              );
+            })}
+          </div>
+        </section>
+
+        {/* 오른쪽: 친구 Todo 리스트 (읽기 전용) */}
+        <section className="w-full md:w-1/2">
+          <p className="text-lg font-bold text-slate-900 mb-2 text-center md:text-left">
+            {selectedDate.toLocaleDateString()} 할 일
+          </p>
+
+          {tasks.length === 0 ? (
+            <div className="mt-6 rounded-2xl border border-dashed border-slate-200 bg-slate-50/60 px-6 py-10 text-center text-slate-400 text-sm">
+              이 날에는 등록된 할 일이 없어요.
+            </div>
+          ) : (
+            <ul className="space-y-3 max-h-[520px] overflow-y-auto pr-1 mt-4">
+              {tasks.map((task) => (
+                <li
+                  key={task._id}
+                  className="flex items-center gap-3 rounded-2xl bg-white px-4 py-3 border border-slate-200 shadow-sm"
+                >
+                  <input
+                    type="checkbox"
+                    checked={task.completed}
+                    readOnly
+                    className="h-5 w-5 rounded border-slate-300 text-slate-900"
+                  />
+                  <p
+                    className={`flex-1 text-sm md:text-base leading-snug ${
+                      task.completed
+                        ? "line-through text-slate-400"
+                        : "text-slate-900"
+                    }`}
+                  >
+                    {task.title}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      </div>
     </div>
   );
 }
