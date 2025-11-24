@@ -1,14 +1,10 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import Todo from "@/lib/models/Todo";
 import { connectMongo } from "@/lib/mongo";
 
-type Params = {
-  params: {
-    id: string;
-  };
-};
+type RouteContext = { params: Promise<{ id: string }> };
 
-export async function PUT(request: Request, { params }: Params) {
+export async function PUT(request: NextRequest, context: RouteContext) {
   try {
     await connectMongo();
 
@@ -18,7 +14,9 @@ export async function PUT(request: Request, { params }: Params) {
     if (title !== undefined) updateData.title = title;
     if (completed !== undefined) updateData.completed = completed;
 
-    const updatedTodo = await Todo.findByIdAndUpdate(params.id, updateData, {
+    const { id } = await context.params;
+
+    const updatedTodo = await Todo.findByIdAndUpdate(id, updateData, {
       new: true,
     });
 
@@ -32,11 +30,13 @@ export async function PUT(request: Request, { params }: Params) {
   }
 }
 
-export async function GET(request: Request, { params }: Params) {
+export async function GET(request: NextRequest, context: RouteContext) {
   try {
     await connectMongo();
 
-    const todos = await Todo.find({ userId: params.id }).sort({ createdAt: -1 });
+    const { id } = await context.params;
+
+    const todos = await Todo.find({ userId: id }).sort({ createdAt: -1 });
 
     return NextResponse.json(todos);
   } catch (error) {
@@ -48,11 +48,13 @@ export async function GET(request: Request, { params }: Params) {
   }
 }
 
-export async function DELETE(request: Request, { params }: Params) {
+export async function DELETE(request: NextRequest, context: RouteContext) {
   try {
     await connectMongo();
 
-    await Todo.findByIdAndDelete(params.id);
+    const { id } = await context.params;
+
+    await Todo.findByIdAndDelete(id);
 
     return NextResponse.json({ message: "Todo deleted" });
   } catch (error) {

@@ -1,14 +1,11 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import Friend from "@/lib/models/Friend";
 import { connectMongo } from "@/lib/mongo";
 
-type Params = {
-  params: {
-    id: string;
-  };
-};
-
-export async function GET(request: Request, { params }: Params) {
+export async function GET(
+  request: NextRequest,
+  context: { params: Promise<{ id: string }> }
+) {
   try {
     await connectMongo();
 
@@ -22,7 +19,8 @@ export async function GET(request: Request, { params }: Params) {
       );
     }
 
-    const doc = await Friend.findById(params.id);
+    const { id } = await context.params;
+    const doc = await Friend.findById(id)
 
     if (!doc || doc.status !== "accepted") {
       return NextResponse.json(

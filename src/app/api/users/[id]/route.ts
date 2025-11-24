@@ -1,18 +1,16 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import User from "@/lib/models/User";
 import { connectMongo } from "@/lib/mongo";
 
-type Params = {
-  params: {
-    id: string;
-  };
-};
+type RouteContext = { params: Promise<{ id: string }> };
 
-export async function GET(request: Request, { params }: Params) {
+export async function GET(request: NextRequest, context: RouteContext) {
   try {
     await connectMongo();
 
-    const user = await User.findById(params.id);
+    const { id } = await context.params;
+
+    const user = await User.findById(id);
 
     if (!user) {
       return NextResponse.json(

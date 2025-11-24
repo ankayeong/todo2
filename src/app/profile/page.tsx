@@ -1,6 +1,7 @@
 "use client";
 
-import { useUser } from '@clerk/nextjs';
+import Image from "next/image";
+import { useUser } from "@clerk/nextjs";
 
 export default function ProfilePage() {
   const { user } = useUser();

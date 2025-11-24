@@ -1,14 +1,10 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import Friend from "@/lib/models/Friend";
 import { connectMongo } from "@/lib/mongo";
 
-type Params = {
-  params: {
-    id: string;
-  };
-};
+type RouteContext = { params: Promise<{ id: string }> };
 
-export async function POST(request: Request, { params }: Params) {
+export async function POST(request: NextRequest, context: RouteContext) {
   try {
     await connectMongo();
 
@@ -20,9 +16,11 @@ export async function POST(request: Request, { params }: Params) {
         { status: 400 }
       );
     }
+    
+    const { id } = await context.params;
 
     const requestDoc = await Friend.findOne({
-      _id: params.id,
+      _id: id,
       status: "pending",
       $or: [{ recipientId: userId }, { requesterId: userId }],
     });
