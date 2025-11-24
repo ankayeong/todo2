@@ -32,7 +32,7 @@ export default function StatsPage() {
   useEffect(() => {
     if (!isLoaded || !isSignedIn || !userId) return;
 
-    fetch(`http://localhost:5000/api/todos/stats/monthly?userId=${userId}`)
+    fetch(`/api/todos/stats/monthly?userId=${userId}`)
       .then((res) => res.json())
       .then((stats) => {
         setData(stats);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useAuth, useUser } from "@clerk/nextjs";
 import Link from "next/link";
 
@@ -35,17 +35,15 @@ export default function FriendsPage() {
 
   const myName = user?.fullName || "사용자";
 
-  const loadAll = () => {
+  const loadAll = useCallback(() => {
     if (!userId) return;
     setLoading(true);
 
     Promise.all([
-      fetch(`http://localhost:5000/api/friends?userId=${userId}`).then((res) =>
+      fetch(`/api/friends?userId=${userId}`).then((res) =>
         res.json()
       ),
-      fetch(
-        `http://localhost:5000/api/friends/requests?userId=${userId}`
-      ).then((res) => res.json()),
+      fetch(`/api/friends/requests?userId=${userId}`).then((res) => res.json()),
     ])
       .then(([friendsData, pendingData]) => {
         setFriends(Array.isArray(friendsData) ? friendsData : []);
@@ -55,13 +53,13 @@ export default function FriendsPage() {
         console.error("친구 데이터 불러오기 실패:", err);
       })
       .finally(() => setLoading(false));
-  };
+   }, [userId]);
 
   // 초기 로드
   useEffect(() => {
     if (!isLoaded || !isSignedIn || !userId) return;
     loadAll();
-  }, [isLoaded, isSignedIn, userId]);
+  }, [isLoaded, isSignedIn, loadAll, userId]);
 
   if (!isLoaded || loading) {
     return (
@@ -90,7 +88,7 @@ export default function FriendsPage() {
       recipientName: friendName.trim() || friendCode.trim(),
     };
 
-    fetch("http://localhost:5000/api/friends/requests", {
+    fetch("/api/friends/requests", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
@@ -114,7 +112,7 @@ export default function FriendsPage() {
 
   // 친구 요청 수락
   const acceptRequest = (reqId: string) => {
-    fetch(`http://localhost:5000/api/friends/requests/${reqId}/accept`, {
+    fetch(`/api/friends/requests/${reqId}/accept`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ userId }),
@@ -135,7 +133,7 @@ export default function FriendsPage() {
 
   // 친구 요청 거절/취소
   const rejectRequest = (reqId: string) => {
-    fetch(`http://localhost:5000/api/friends/requests/${reqId}/reject`, {
+    fetch(`/api/friends/requests/${reqId}/reject`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ userId }),

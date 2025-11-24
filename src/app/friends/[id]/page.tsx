@@ -64,7 +64,7 @@ export default function FriendCalendarPage({
 
     setLoading(true);
 
-    fetch(`http://localhost:5000/api/friends/${id}?userId=${userId}`)
+    fetch(`/api/friends/${id}?userId=${userId}`)
       .then(async (res) => {
         if (!res.ok) throw new Error("친구 정보가 없습니다.");
         return res.json();
@@ -84,9 +84,7 @@ export default function FriendCalendarPage({
 
     const dateStr = getDateString(selectedDate);
 
-    fetch(
-      `http://localhost:5000/api/todos/by-date?userId=${friend.friendId}&date=${dateStr}`
-    )
+    fetch(`/api/todos/by-date?userId=${friend.friendId}&date=${dateStr}`)
       .then((res) => res.json())
       .then((data: Todo[]) => setTasks(sortTodosByDate(data)))
       .catch((err) => console.error("친구 투두 불러오기 실패:", err));

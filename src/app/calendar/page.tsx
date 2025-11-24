@@ -52,7 +52,7 @@ export default function CalendarPage() {
   useEffect(() => {
     if (!isLoaded || !isSignedIn || !userId) return;
 
-    fetch(`http://localhost:5000/api/todos/${userId}`)
+    fetch(`/api/todos/${userId}`)
       .then((res) => res.json())
       .then((all: Todo[]) => {
         const map: Record<string, number> = {};
@@ -63,21 +63,21 @@ export default function CalendarPage() {
         });
         setMonthlyTasks(map);
       });
-  }, [viewDate, isLoaded]);
+  }, [isLoaded, isSignedIn, userId, viewDate, year, month]);
 
   // 선택한 날짜 할 일 불러오기
   useEffect(() => {
     if (!isLoaded || !isSignedIn || !userId) return;
 
-    fetch(`http://localhost:5000/api/todos/by-date?userId=${userId}&date=${selectDateString}`)
+    fetch(`/api/todos/by-date?userId=${userId}&date=${selectDateString}`)
       .then((res) => res.json())
       .then((data: Todo[]) => setTasks(sortTodosByDate(data)));
-  }, [selectedDate, isLoaded]);
+  }, [isLoaded, isSignedIn, selectDateString, selectedDate, userId]);
 
   const addTask = () => {
     if (!input.trim() || !userId) return;
 
-    fetch("http://localhost:5000/api/todos", {
+     fetch("/api/todos", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -102,7 +102,7 @@ export default function CalendarPage() {
     const removed = tasks.find((t) => t._id === id);
     const dateStr = removed?.createdAt;
 
-    fetch(`http://localhost:5000/api/todos/${id}`, { method: "DELETE" }).then(() => {
+    fetch(`/api/todos/${id}`, { method: "DELETE" }).then(() => {
       setTasks((prev) => prev.filter((t) => t._id !== id));
       if (dateStr) {
         setMonthlyTasks((prev) => ({
@@ -114,7 +114,7 @@ export default function CalendarPage() {
   };
 
   const toggleCompleted = (task: Todo, completed: boolean) => {
-    fetch(`http://localhost:5000/api/todos/${task._id}`, {
+    fetch(`/api/todos/${task._id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ completed }),
@@ -127,7 +127,7 @@ export default function CalendarPage() {
 
   const saveEditing = (task: Todo) => {
     if (!editingText.trim()) return;
-    fetch(`http://localhost:5000/api/todos/${task._id}`, {
+    fetch(`/api/todos/${task._id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ title: editingText.trim() }),

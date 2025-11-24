@@ -47,13 +47,11 @@ export default function MainPage() {
   useEffect(() => {
     if (!isLoaded || !isSignedIn || !userId) return;
 
-    fetch(
-      `http://localhost:5000/api/todos/by-date?userId=${userId}&date=${todayKey}`
-    )
+    fetch(`/api/todos/by-date?userId=${userId}&date=${todayKey}`)
       .then((res) => res.json())
       .then((data: Todo[]) => setTasks(sortTodosByDate(data)))
       .catch((err) => console.error("Error fetching todos:", err));
-  }, [isLoaded, isSignedIn, userId]);
+  }, [isLoaded, isSignedIn, todayKey, userId]);
 
   // 로딩 화면
   if (!isLoaded) {
@@ -72,38 +70,39 @@ export default function MainPage() {
   const totalCount = tasks.length;
   const completedCount = tasks.filter((t) => t.completed).length;
 
-  // Todo 추가
   const addTask = () => {
-    if (!input.trim() || !userId) return;
+    const title = input.trim();
+    if (!title || !userId) return;
 
-    fetch("http://localhost:5000/api/todos", {
+    fetch("/api/todos", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         userId,
-        title: input.trim(),
+        title,
         description: "",
         createdAt: todayKey,
       }),
     })
       .then((res) => res.json())
       .then((newTodo: Todo) => {
-        setTasks((prev) => [newTodo, ...prev]); // 최신 위로
+        setTasks((prev) => sortTodosByDate([newTodo, ...prev]));
         setInput("");
       })
       .catch((err) => console.error("Error creating todo:", err));
   };
 
+
   // 삭제
   const removeTask = (id: string) => {
-    fetch(`http://localhost:5000/api/todos/${id}`, { method: "DELETE" })
+    fetch(`/api/todos/${id}`, { method: "DELETE" })
       .then(() => setTasks((prev) => prev.filter((t) => t._id !== id)))
       .catch((err) => console.error("Error deleting todo:", err));
   };
 
   // 체크 변경
   const toggleCompleted = (task: Todo, completed: boolean) => {
-    fetch(`http://localhost:5000/api/todos/${task._id}`, {
+    fetch(`/api/todos/${task._id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ completed }),
@@ -120,7 +119,7 @@ export default function MainPage() {
   const saveEditing = (task: Todo) => {
     if (!editingText.trim()) return;
 
-    fetch(`http://localhost:5000/api/todos/${task._id}`, {
+    fetch(`/api/todos/${task._id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ title: editingText.trim() }),
